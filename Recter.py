@@ -68,6 +68,8 @@ class TestPlugin2(object):
             self.move()
         elif mode == 'd':
             self.delete()
+        elif mode == 'v':
+            self.select()
         elif mode == 'u':
             self.nvim.command("u")
         else:
@@ -92,25 +94,38 @@ class TestPlugin2(object):
         vim_buffer = self.copy_vim_buffer()
         curpos = self.nvim.call("getcurpos")
         buf = Buffer.init(vim_buffer)
-    
+
         # check that current cursor position is in rect
         rects = buf.find_no_right_end_rects()
         if not rects:
             __logger__.info('[I] :does not exist no right end rect'
                             + inspect.currentframe().f_code.co_name)
             return
-    
-        # reshape rects 
+
+        # reshape rects
         for rect in rects:
             buf.reshape_rect(rect)
-    
+
         self.redraw(buf, curpos)
         self.nvim.command("Recter")
-        
 
     def get_cursor_point(self):
         curpos = self.nvim.call("getcurpos")
-        return Buffer.translate_vim_buffer_to_buffer(Point(curpos[1], curpos[2]))
+        return Buffer.translate_vim_buffer_to_buffer(Point(
+            curpos[1], curpos[2]))
+
+    def select(self):
+        # get current vim-buffer
+        vim_buffer = self.copy_vim_buffer()
+        buf = Buffer.init(vim_buffer)
+
+        # get cursor position
+        curpos_point = self.get_cursor_point()
+
+        # check that current cursor position is in rect
+        rect = buf.get_rect_on_cursor(curpos_point)
+        
+        self.focus()
 
     def relabel(self):
         """
@@ -177,6 +192,7 @@ class TestPlugin2(object):
 
         buf.delete_rect(rect)
         self.redraw(buf, curpos)
+        self.change_mode('f')
 
     def echo(self, value):
         self.nvim.command("echo(\"{}\")".format(value))
@@ -202,12 +218,14 @@ class TestPlugin2(object):
             self.redraw(buf, curpos)
 
         cursorline_org_status = self.nvim.current.window.options['cursorline']
-        cursorcolumn_org_status = self.nvim.current.window.options['cursorcolumn']
+        cursorcolumn_org_status = \
+            self.nvim.current.window.options['cursorcolumn']
         self.nvim.command("set cursorline")
         self.nvim.command("set cursorcolumn")
 
-        self.nvim.command("echo('Recter `focus mode`: s:srround, i:relabel, "
-        "f:focus, m:move rect, y:yank rect, d:delete rect, u:undo')")
+        self.nvim.command
+        ("echo('Recter `focus mode`: s:srround, i:relabel, "
+         "f:focus, m:move rect, y:yank rect, d:delete rect, u:undo')")
 
         # focus
         while True:
@@ -227,8 +245,10 @@ class TestPlugin2(object):
                     rect for rect in buf.find_rects() if rect.edges['UL'].x > curpos_point.x]
             else:
                 self.change_mode(char)
-                self.nvim.current.window.options['cursorline'] = cursorline_org_status
-                self.nvim.current.window.options['cursorcolumn'] = cursorcolumn_org_status
+                self.nvim.current.window.options['cursorline'] = \
+                    cursorline_org_status
+                self.nvim.current.window.options['cursorcolumn'] = \
+                    cursorcolumn_org_status
                 return
 
             if not target_rects:
@@ -273,7 +293,7 @@ class TestPlugin2(object):
 
         # past
         h_space_dist = 1
-        v_space_dist = 0
+        v_space_dist = 1
         while True:
             char = self.nvim.call("nr2char", self.nvim.call("getchar"))
             if char == 'h':
@@ -510,6 +530,7 @@ class Rect(object):
                      'LR': lower_right, 'LL': lower_left}
         return cls
 
+
 class Buffer(object):
     def __init__(self, buf_table, rects=[], no_right_end_rects=[]):
         self.buf_table = buf_table
@@ -544,7 +565,8 @@ class Buffer(object):
         left_end_x = rect.edges['UL'].x
         right_end_x = rect.edges['UR'].x + 1
         for line in lines:
-            line[left_end_x:right_end_x] = [' '] * len(line[left_end_x:right_end_x])
+            line[left_end_x:right_end_x] = \
+                [' '] * len(line[left_end_x:right_end_x])
 
     def find_rect_nearest_neighbor(self, point):
         rects = self.find_rects()
@@ -834,7 +856,6 @@ class Buffer(object):
         #         print("overlaping")
         self.print_rect(rect)
 
-
     def print_rect(self, rect):
         for count, edge in enumerate(rect.edges.values()):
             self.buf_table[edge.y][edge.x] = Rect.edge_shape
@@ -844,12 +865,10 @@ class Buffer(object):
         self.print_vs_line(rect.edges['LL'], rect.edges['LR'])
         self.print_hs_line(rect.edges['UL'], rect.edges['LL'])
 
-
     def print_vs_line(self, left_point, right_point):
         line = self.buf_table[left_point.y]
         strs = [Rect.horizon_line_shape] * ((right_point.x - left_point.x) - 1)
         line[left_point.x+1:right_point.x] = strs
-
 
     def print_hs_line(self, upper_point, lower_point):
         lines = self.buf_table[upper_point.y+1:lower_point.y]
